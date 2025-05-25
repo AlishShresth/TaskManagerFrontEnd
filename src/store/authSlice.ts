@@ -1,4 +1,9 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import {
+  createSlice,
+  createAsyncThunk,
+  type ActionReducerMapBuilder,
+  type PayloadAction,
+} from '@reduxjs/toolkit';
 import api from '../services/api';
 import { jwtDecode } from 'jwt-decode';
 import {
@@ -9,10 +14,11 @@ import {
 } from '../types/auth';
 
 export const login = createAsyncThunk<
-  { user: User; tokens: AuthTokens },
-  { email: string; password: string },
-  { rejectValue: ApiError }
+  { user: User; tokens: AuthTokens }, // Return type of the thunk (fulfilled)
+  { email: string; password: string }, // Argument type (payload sent to thunk)
+  { rejectValue: ApiError } // thunkapi config (custom reject type)
 >('auth/login', async ({ email, password }, { rejectWithValue }) => {
+  // action type string ('auth/login') and payload creator function which receives the payload and thunkAPI helpers (like rejectWithValue, dispatch).
   try {
     const response = await api.post<AuthTokens>('/token/', { email, password });
     const tokens = response.data;
@@ -26,7 +32,7 @@ export const login = createAsyncThunk<
 });
 
 export const register = createAsyncThunk<
-  { user: User; tokens: AuthTokens },
+  { user: User; tokens: AuthTokens }, // Return type of the thunk (fulfilled)
   {
     email: string;
     first_name: string;
@@ -34,9 +40,10 @@ export const register = createAsyncThunk<
     phone_number: string;
     password: string;
     password2: string;
-  },
-  { rejectValue: ApiError }
+  }, // Argument type (payload sent to thunk)
+  { rejectValue: ApiError } // thunkapi config (custom reject type)
 >('auth/register', async (data, { rejectWithValue, dispatch }) => {
+  // action type string ('auth/register') and payload creator function which receives the payload and thunkAPI helpers (like rejectWithValue, dispatch).
   try {
     await api.post('/register/', {
       ...data,
@@ -53,6 +60,24 @@ export const register = createAsyncThunk<
   }
 });
 
+export const logout = createAsyncThunk<void, void, { rejectValue: ApiError }>(
+  'auth/logout',
+  async (_, { rejectWithValue }) => {
+    try {
+      const refresh = localStorage.getItem('refresh_token');
+      if (refresh) {
+        await api.post('/logout/', { refresh });
+      }
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response.data || { detail: 'Logout failed' }
+      );
+    }
+  }
+);
+
 const initialState: AuthState = {
   user: null,
   tokens: null,
@@ -63,48 +88,74 @@ const initialState: AuthState = {
 const authSlice = createSlice({
   name: 'auth',
   initialState,
-  reducers: {
-    logout: (state: AuthState) => {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      state.user = null;
-      state.tokens = null;
-      state.error = null;
-    },
-  },
-  extraReducers: (builder: any) => {
+  reducers: {},
+  extraReducers: (builder: ActionReducerMapBuilder<AuthState>) => {
     builder
       .addCase(login.pending, (state: AuthState) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(login.fulfilled, (state: AuthState, action: any) => {
-        state.loading = false;
-        state.user = action.payload.user;
-        state.tokens = action.payload.tokens;
-      })
-      .addCase(login.rejected, (state: AuthState, action: any) => {
-        state.loading = false;
-        state.error = action.payload?.detail || 'Login failed';
-      })
+      .addCase(
+        login.fulfilled,
+        (
+          state: AuthState,
+          action: PayloadAction<{ user: User; tokens: AuthTokens }>
+        ) => {
+          state.loading = false;
+          state.user = action.payload.user;
+          state.tokens = action.payload.tokens;
+        }
+      )
+      .addCase(
+        login.rejected,
+        (state: AuthState, action: PayloadAction<any>) => {
+          state.loading = false;
+          state.error = action.payload?.detail || 'Login failed';
+        }
+      )
       .addCase(register.pending, (state: AuthState) => {
         state.loading = true;
         state.error = null;
       })
-      .addCase(register.fulfilled, (state: AuthState, action: any) => {
-        state.loading = false;
-        state.user = action.payload.user;
-        state.tokens = action.payload.tokens;
+      .addCase(
+        register.fulfilled,
+        (
+          state: AuthState,
+          action: PayloadAction<{ user: User; tokens: AuthTokens }>
+        ) => {
+          state.loading = false;
+          state.user = action.payload.user;
+          state.tokens = action.payload.tokens;
+        }
+      )
+      .addCase(
+        register.rejected,
+        (state: AuthState, action: PayloadAction<any>) => {
+          state.loading = false;
+          state.error =
+            action.payload?.email?.[0] ||
+            action.payload?.detail ||
+            'Registration failed';
+        }
+      )
+      .addCase(logout.pending, (state: AuthState) => {
+        state.loading = true;
+        state.error = null;
       })
-      .addCase(register.rejected, (state: AuthState, action: any) => {
+      .addCase(logout.fulfilled, (state: AuthState) => {
+        state.user = null;
+        state.tokens = null;
+        state.error = null;
         state.loading = false;
-        state.error =
-          action.payload?.email?.[0] ||
-          action.payload?.detail ||
-          'Registration failed';
-      });
+      })
+      .addCase(
+        logout.rejected,
+        (state: AuthState, action: PayloadAction<any>) => {
+          state.error = action.payload?.detail || 'Logout failed';
+          state.loading = false;
+        }
+      );
   },
 });
 
-export const { logout } = authSlice.actions;
 export default authSlice.reducer;
