@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { type AppDispatch, type RootState } from "../store";
 import { login } from "../store/authSlice";
+import { setNavigate } from "../services/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -11,13 +12,18 @@ export default function Login() {
   const { loading, error } = useSelector((state: RootState) => state.auth);
   const navigate = useNavigate();
 
+  setNavigate(navigate);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await dispatch(login({ email, password })).unwrap();
-      navigate('/dashboard');
+      const {user, tokens} = await dispatch(login({ email, password })).unwrap();
+      if(user && tokens){
+        navigate('/dashboard');
+      }
     } catch (err) {
       // Error handled by Redux
+      console.log(err, 'error');
     }
   };
 

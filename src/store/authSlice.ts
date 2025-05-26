@@ -20,7 +20,7 @@ export const login = createAsyncThunk<
 >('auth/login', async ({ email, password }, { rejectWithValue }) => {
   // action type string ('auth/login') and payload creator function which receives the payload and thunkAPI helpers (like rejectWithValue, dispatch).
   try {
-    const response = await api.post<AuthTokens>('/token/', { email, password });
+    const response = await api.post<AuthTokens>('/login/', { email, password });
     const tokens = response.data;
     localStorage.setItem('access_token', tokens.access);
     localStorage.setItem('refresh_token', tokens.refresh);
@@ -78,9 +78,20 @@ export const logout = createAsyncThunk<void, void, { rejectValue: ApiError }>(
   }
 );
 
+const access = localStorage.getItem('access_token');
+const refresh = localStorage.getItem('refresh_token');
+let user = null;
+
+if (access) {
+  try {
+    const decoded: any = jwtDecode(access);
+    user = decoded.user_id ? { id: decoded.user_id } : null;
+  } catch {}
+}
+
 const initialState: AuthState = {
-  user: null,
-  tokens: null,
+  user,
+  tokens: access && refresh ? { access, refresh } : null,
   loading: false,
   error: null,
 };

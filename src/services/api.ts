@@ -4,6 +4,15 @@ import axios, {
   type AxiosRequestConfig,
 } from 'axios';
 import { toast } from 'react-toastify';
+import { type NavigateOptions, type To } from 'react-router-dom';
+
+type NavigateFn = (to: To, options?: NavigateOptions) => void;
+
+let navigate: NavigateFn | null = null;
+
+export const setNavigate = (nav: NavigateFn) => {
+  navigate = nav;
+};
 
 const api: AxiosInstance = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
@@ -70,7 +79,11 @@ api.interceptors.response.use(
         // No refresh token, force logout or redirect
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        if (navigate) {
+          navigate('/login');
+        } else {
+          window.location.href = '/login';
+        }
         return Promise.reject(error);
       }
       try {
@@ -94,7 +107,11 @@ api.interceptors.response.use(
         processQueue(refreshError, null);
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        if (navigate) {
+          navigate('/login');
+        } else {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
